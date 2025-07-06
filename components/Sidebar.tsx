@@ -25,7 +25,7 @@ interface SidebarProps {
   groups: Group[];
   activeGroup: Group | null;
   onSelectGroup: (group: Group | null) => void;
-  onCreateGroup: (groupData: { name: string; description?: string }) => Promise<Group | null>;
+  onCreateGroup: (groupData: { name: string; description?: string }) => void;
   userId: string | null;
   onAddMember?: (member: { name: string; email?: string }) => void;
   onRemoveMember?: (memberId: string) => void;
@@ -46,18 +46,15 @@ export function Sidebar({
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
 
-  const handleCreateGroup = async (e: React.FormEvent) => {
+  const handleCreateGroup = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
     
-    const groupData = {
+    onCreateGroup({
       name: newGroupName.trim(),
       description: newGroupDesc.trim() || undefined
-    };
-    const newGroup = await onCreateGroup(groupData);
-    if (newGroup) {
-      onSelectGroup(newGroup);
-    }
+    });
+    
     setNewGroupName('');
     setNewGroupDesc('');
     setIsGroupDialogOpen(false);
@@ -111,9 +108,9 @@ export function Sidebar({
                   New Group
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md mx-auto rounded-xl shadow-2xl p-8 bg-white border border-gray-200">
+              <DialogContent>
                 <DialogHeader>
-                  <DialogTitle className="text-2xl font-bold mb-4">Create New Group</DialogTitle>
+                  <DialogTitle>Create New Group</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleCreateGroup} className="space-y-4">
                   <div>
@@ -135,9 +132,11 @@ export function Sidebar({
                       placeholder="Describe your group"
                     />
                   </div>
-                  <div className="flex gap-3 pt-2">
-                    <Button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white">Create Group</Button>
-                    <Button type="button" variant="outline" onClick={() => setIsGroupDialogOpen(false)} className="flex-1">Cancel</Button>
+                  <div className="flex gap-3">
+                    <Button type="submit" className="flex-1">Create Group</Button>
+                    <Button type="button" variant="outline" onClick={() => setIsGroupDialogOpen(false)}>
+                      Cancel
+                    </Button>
                   </div>
                 </form>
               </DialogContent>

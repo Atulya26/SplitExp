@@ -8,35 +8,47 @@ import { Button } from './components/ui/button';
 import { Card, CardContent } from './components/ui/card';
 import { Calculator, Receipt, Users, TrendingUp, Loader2 } from 'lucide-react';
 import { onAuthStateChange, signInAnonymouslyUser } from './src/firebase/auth';
-import { createGroup, getGroups, addExpense, getExpenses, deleteExpense, addMember, getMembers, removeMember, Group, Member, Expense } from './src/firebase/firestore';
-
-// Helper to load full group data (with members and expenses)
-async function loadGroupData(group: Group): Promise<Group> {
-  const [members, expenses] = await Promise.all([
-    getMembers(group.id),
-    getExpenses(group.id),
-  ]);
-  return { ...group, members, expenses };
-}
+import { createGroup, getGroups, addExpense, deleteExpense, addMember, removeMember, getExpenses, getMembers, Group, Member, Expense } from './src/firebase/firestore';
 
 export default function App() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
+  const [members, setMembers] = useState<Member[]>([]); // new
+  const [expenses, setExpenses] = useState<Expense[]>([]); // new
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Initialize Firebase auth and load data
+  // Fetch members and expenses for the active group
+  const fetchGroupData = async (group: Group | null) => {
+    if (!group) {
+      setMembers([]);
+      setExpenses([]);
+      return;
+    }
+    try {
+      const [groupMembers, groupExpenses] = await Promise.all([
+        getMembers(group.id),
+        getExpenses(group.id),
+      ]);
+      setMembers(groupMembers);
+      setExpenses(groupExpenses);
+    } catch (error) {
+      setMembers([]);
+      setExpenses([]);
+      console.error('Error loading group data:', error);
+    }
+  };
+
+  // Initialize Firebase auth and load groups
   useEffect(() => {
     const unsubscribe = onAuthStateChange(async (user) => {
       if (user) {
         setUserId(user.uid);
         try {
           const userGroups = await getGroups(user.uid);
-          // Load full data for all groups
-          const groupsWithData = await Promise.all(userGroups.map(loadGroupData));
-          setGroups(groupsWithData);
-          if (groupsWithData.length > 0) {
-            setActiveGroup(groupsWithData[0]);
+          setGroups(userGroups);
+          if (userGroups.length > 0) {
+            setActiveGroup(userGroups[0]);
           }
         } catch (error) {
           console.error('Error loading groups:', error);
@@ -55,49 +67,16 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // When a group is selected, load its latest data
-  const handleSelectGroup = async (group: Group | null) => {
-    if (!group) {
-      setActiveGroup(null);
-      return;
-    }
-    setLoading(true);
-    try {
-      const fullGroup = await loadGroupData(group);
-      setActiveGroup(fullGroup);
-    } catch (error) {
-      console.error('Error loading group data:', error);
-    }
-    setLoading(false);
-  };
-
-  // After any CRUD, reload all groups and the active group
-  const reloadGroups = async (activeId?: string) => {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      const userGroups = await getGroups(userId);
-      const groupsWithData = await Promise.all(userGroups.map(loadGroupData));
-      setGroups(groupsWithData);
-      if (activeId) {
-        const found = groupsWithData.find(g => g.id === activeId);
-        setActiveGroup(found || null);
-      } else if (groupsWithData.length > 0) {
-        setActiveGroup(groupsWithData[0]);
-      } else {
-        setActiveGroup(null);
-      }
-    } catch (error) {
-      console.error('Error reloading groups:', error);
-    }
-    setLoading(false);
-  };
+  // Fetch members and expenses when activeGroup changes
+  useEffect(() => {
+    fetchGroupData(activeGroup);
+  }, [activeGroup]);
 
   const handleAddExpense = async (expense: Omit<Expense, 'id' | 'createdAt'>) => {
     if (!activeGroup || !userId) return;
     try {
       await addExpense(activeGroup.id, expense);
-      await reloadGroups(activeGroup.id);
+      fetchGroupData(activeGroup);
     } catch (error) {
       console.error('Error adding expense:', error);
     }
@@ -107,7 +86,7 @@ export default function App() {
     if (!activeGroup || !userId) return;
     try {
       await addMember(activeGroup.id, member);
-      await reloadGroups(activeGroup.id);
+      fetchGroupData(activeGroup);
     } catch (error) {
       console.error('Error adding member:', error);
     }
@@ -117,7 +96,7 @@ export default function App() {
     if (!activeGroup) return;
     try {
       await removeMember(memberId);
-      await reloadGroups(activeGroup.id);
+      fetchGroupData(activeGroup);
     } catch (error) {
       console.error('Error removing member:', error);
     }
@@ -127,10 +106,14 @@ export default function App() {
     if (!activeGroup) return;
     try {
       await deleteExpense(expenseId);
-      await reloadGroups(activeGroup.id);
+      fetchGroupData(activeGroup);
     } catch (error) {
       console.error('Error deleting expense:', error);
     }
+  };
+
+  const handleSelectGroup = (group: Group | null) => {
+    setActiveGroup(group);
   };
 
   const handleCreateGroup = async (groupData: { name: string; description?: string }) => {
@@ -139,29 +122,24 @@ export default function App() {
       const newGroup = await createGroup({
         name: groupData.name,
         description: groupData.description,
-        members: [{ id: userId, name: 'You', email: '' }],
-        expenses: [],
+        members: [], // not used in Firestore
+        expenses: [], // not used in Firestore
         createdBy: userId
       });
-      // Load full group data (with members and expenses)
-      const fullGroup = await loadGroupData(newGroup);
-      await reloadGroups(fullGroup.id);
-      setActiveGroup(fullGroup); // Set as active immediately
-      return fullGroup;
+      const updatedGroups = [...groups, newGroup];
+      setGroups(updatedGroups);
+      setActiveGroup(newGroup);
     } catch (error) {
       console.error('Error creating group:', error);
-      return null;
     }
   };
 
   const getGroupStats = () => {
     if (!activeGroup) return { totalExpenses: 0, memberCount: 0, expenseCount: 0, averageExpense: 0 };
-    
-    const totalExpenses = activeGroup.expenses.reduce((sum: number, expense: Expense) => sum + expense.amount, 0);
-    const memberCount = activeGroup.members.length;
-    const expenseCount = activeGroup.expenses.length;
+    const totalExpenses = expenses.reduce((sum: number, expense: Expense) => sum + expense.amount, 0);
+    const memberCount = members.length;
+    const expenseCount = expenses.length;
     const averageExpense = expenseCount > 0 ? totalExpenses / expenseCount : 0;
-    
     return { totalExpenses, memberCount, expenseCount, averageExpense };
   };
 
@@ -215,7 +193,6 @@ export default function App() {
         onAddMember={handleAddMember}
         onRemoveMember={handleRemoveMember}
       />
-      
       <div className="flex-1 overflow-hidden">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-8 py-6">
@@ -234,7 +211,6 @@ export default function App() {
             </div>
           </div>
         </div>
-
         {/* Stats Cards */}
         <div className="px-8 py-6 bg-gray-50 border-b border-gray-200">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -251,7 +227,6 @@ export default function App() {
                 </div>
               </CardContent>
             </Card>
-            
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center">
@@ -265,7 +240,6 @@ export default function App() {
                 </div>
               </CardContent>
             </Card>
-            
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center">
@@ -281,7 +255,6 @@ export default function App() {
                 </div>
               </CardContent>
             </Card>
-            
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center">
@@ -297,32 +270,30 @@ export default function App() {
             </Card>
           </div>
         </div>
-
         {/* Main Content */}
         <div className="p-8 overflow-y-auto h-[calc(100%-200px)]">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left Column */}
             <div className="space-y-6">
               <AddExpense 
-                members={activeGroup.members}
+                members={members}
                 onAddExpense={handleAddExpense}
               />
               <ExpenseDirectory 
-                expenses={activeGroup.expenses}
-                members={activeGroup.members}
+                expenses={expenses}
+                members={members}
                 onDeleteExpense={handleDeleteExpense}
               />
             </div>
-            
             {/* Right Column */}
             <div className="space-y-6">
               <Balances 
-                members={activeGroup.members}
-                expenses={activeGroup.expenses}
+                members={members}
+                expenses={expenses}
               />
               <Settlements 
-                members={activeGroup.members}
-                expenses={activeGroup.expenses}
+                members={members}
+                expenses={expenses}
               />
             </div>
           </div>
