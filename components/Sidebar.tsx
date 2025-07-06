@@ -46,15 +46,15 @@ export function Sidebar({
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
 
-  const handleCreateGroup = (e: React.FormEvent) => {
+  const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
     
-    onCreateGroup({
+    const groupData = {
       name: newGroupName.trim(),
       description: newGroupDesc.trim() || undefined
-    });
-    
+    };
+    await onCreateGroup(groupData);
     setNewGroupName('');
     setNewGroupDesc('');
     setIsGroupDialogOpen(false);
@@ -108,9 +108,9 @@ export function Sidebar({
                   New Group
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-md mx-auto rounded-xl shadow-2xl p-8 bg-white border border-gray-200">
                 <DialogHeader>
-                  <DialogTitle>Create New Group</DialogTitle>
+                  <DialogTitle className="text-2xl font-bold mb-4">Create New Group</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleCreateGroup} className="space-y-4">
                   <div>
@@ -132,11 +132,9 @@ export function Sidebar({
                       placeholder="Describe your group"
                     />
                   </div>
-                  <div className="flex gap-3">
-                    <Button type="submit" className="flex-1">Create Group</Button>
-                    <Button type="button" variant="outline" onClick={() => setIsGroupDialogOpen(false)}>
-                      Cancel
-                    </Button>
+                  <div className="flex gap-3 pt-2">
+                    <Button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white">Create Group</Button>
+                    <Button type="button" variant="outline" onClick={() => setIsGroupDialogOpen(false)} className="flex-1">Cancel</Button>
                   </div>
                 </form>
               </DialogContent>
