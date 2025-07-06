@@ -33,7 +33,7 @@ export function AddExpense({ members, onAddExpense }: AddExpenseProps) {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [paidBy, setPaidBy] = useState('');
   const [category, setCategory] = useState('');
-  const [splitWith, setSplitWith] = useState<string[]>([]);
+  const [splitWith, setSplitWith] = useState<string[]>(members.map(m => m.id)); // default all checked
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,6 +76,11 @@ export function AddExpense({ members, onAddExpense }: AddExpenseProps) {
       setSplitWith(splitWith.filter(id => id !== memberId));
     }
   };
+
+  // When members change, update splitWith to include all by default
+  React.useEffect(() => {
+    setSplitWith(members.map(m => m.id));
+  }, [members]);
 
   if (members.length === 0) {
     return (

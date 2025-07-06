@@ -8,7 +8,16 @@ import { Button } from './components/ui/button';
 import { Card, CardContent } from './components/ui/card';
 import { Calculator, Receipt, Users, TrendingUp, Loader2 } from 'lucide-react';
 import { onAuthStateChange, signInAnonymouslyUser } from './src/firebase/auth';
-import { createGroup, getGroups, addExpense, deleteExpense, addMember, removeMember, Group, Member, Expense } from './src/firebase/firestore';
+import { createGroup, getGroups, addExpense, getExpenses, deleteExpense, addMember, getMembers, removeMember, Group, Member, Expense } from './src/firebase/firestore';
+
+// Helper to load full group data (with members and expenses)
+async function loadGroupData(group: Group): Promise<Group> {
+  const [members, expenses] = await Promise.all([
+    getMembers(group.id),
+    getExpenses(group.id),
+  ]);
+  return { ...group, members, expenses };
+}
 
 export default function App() {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -23,9 +32,11 @@ export default function App() {
         setUserId(user.uid);
         try {
           const userGroups = await getGroups(user.uid);
-          setGroups(userGroups);
-          if (userGroups.length > 0) {
-            setActiveGroup(userGroups[0]);
+          // Load full data for all groups
+          const groupsWithData = await Promise.all(userGroups.map(loadGroupData));
+          setGroups(groupsWithData);
+          if (groupsWithData.length > 0) {
+            setActiveGroup(groupsWithData[0]);
           }
         } catch (error) {
           console.error('Error loading groups:', error);
@@ -41,22 +52,52 @@ export default function App() {
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
+  // When a group is selected, load its latest data
+  const handleSelectGroup = async (group: Group | null) => {
+    if (!group) {
+      setActiveGroup(null);
+      return;
+    }
+    setLoading(true);
+    try {
+      const fullGroup = await loadGroupData(group);
+      setActiveGroup(fullGroup);
+    } catch (error) {
+      console.error('Error loading group data:', error);
+    }
+    setLoading(false);
+  };
+
+  // After any CRUD, reload all groups and the active group
+  const reloadGroups = async (activeId?: string) => {
+    if (!userId) return;
+    setLoading(true);
+    try {
+      const userGroups = await getGroups(userId);
+      const groupsWithData = await Promise.all(userGroups.map(loadGroupData));
+      setGroups(groupsWithData);
+      if (activeId) {
+        const found = groupsWithData.find(g => g.id === activeId);
+        setActiveGroup(found || null);
+      } else if (groupsWithData.length > 0) {
+        setActiveGroup(groupsWithData[0]);
+      } else {
+        setActiveGroup(null);
+      }
+    } catch (error) {
+      console.error('Error reloading groups:', error);
+    }
+    setLoading(false);
+  };
+
   const handleAddExpense = async (expense: Omit<Expense, 'id' | 'createdAt'>) => {
     if (!activeGroup || !userId) return;
-    
     try {
-      const newExpense = await addExpense(activeGroup.id, expense);
-      const updatedGroup: Group = {
-        ...activeGroup,
-        expenses: [...activeGroup.expenses, newExpense]
-      };
-      
-      setActiveGroup(updatedGroup);
-      setGroups(groups.map((g: Group) => g.id === activeGroup.id ? updatedGroup : g));
+      await addExpense(activeGroup.id, expense);
+      await reloadGroups(activeGroup.id);
     } catch (error) {
       console.error('Error adding expense:', error);
     }
@@ -64,16 +105,9 @@ export default function App() {
 
   const handleAddMember = async (member: Omit<Member, 'id'>) => {
     if (!activeGroup || !userId) return;
-    
     try {
-      const newMember = await addMember(activeGroup.id, member);
-      const updatedGroup: Group = {
-        ...activeGroup,
-        members: [...activeGroup.members, newMember]
-      };
-      
-      setActiveGroup(updatedGroup);
-      setGroups(groups.map((g: Group) => g.id === activeGroup.id ? updatedGroup : g));
+      await addMember(activeGroup.id, member);
+      await reloadGroups(activeGroup.id);
     } catch (error) {
       console.error('Error adding member:', error);
     }
@@ -81,16 +115,9 @@ export default function App() {
 
   const handleRemoveMember = async (memberId: string) => {
     if (!activeGroup) return;
-    
     try {
       await removeMember(memberId);
-      const updatedGroup: Group = {
-        ...activeGroup,
-        members: activeGroup.members.filter((m: Member) => m.id !== memberId)
-      };
-      
-      setActiveGroup(updatedGroup);
-      setGroups(groups.map((g: Group) => g.id === activeGroup.id ? updatedGroup : g));
+      await reloadGroups(activeGroup.id);
     } catch (error) {
       console.error('Error removing member:', error);
     }
@@ -98,28 +125,16 @@ export default function App() {
 
   const handleDeleteExpense = async (expenseId: string) => {
     if (!activeGroup) return;
-    
     try {
       await deleteExpense(expenseId);
-      const updatedGroup: Group = {
-        ...activeGroup,
-        expenses: activeGroup.expenses.filter((e: Expense) => e.id !== expenseId)
-      };
-      
-      setActiveGroup(updatedGroup);
-      setGroups(groups.map((g: Group) => g.id === activeGroup.id ? updatedGroup : g));
+      await reloadGroups(activeGroup.id);
     } catch (error) {
       console.error('Error deleting expense:', error);
     }
   };
 
-  const handleSelectGroup = (group: Group | null) => {
-    setActiveGroup(group);
-  };
-
   const handleCreateGroup = async (groupData: { name: string; description?: string }) => {
     if (!userId) return;
-    
     try {
       const newGroup = await createGroup({
         name: groupData.name,
@@ -128,10 +143,7 @@ export default function App() {
         expenses: [],
         createdBy: userId
       });
-      
-      const updatedGroups = [...groups, newGroup];
-      setGroups(updatedGroups);
-      setActiveGroup(newGroup);
+      await reloadGroups(newGroup.id);
     } catch (error) {
       console.error('Error creating group:', error);
     }
