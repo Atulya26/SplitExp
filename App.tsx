@@ -143,9 +143,11 @@ export default function App() {
         expenses: [],
         createdBy: userId
       });
-      await reloadGroups(newGroup.id);
-      // Return the new group object so Sidebar can set it as active
-      return { ...newGroup };
+      // Load full group data (with members and expenses)
+      const fullGroup = await loadGroupData(newGroup);
+      await reloadGroups(fullGroup.id);
+      setActiveGroup(fullGroup); // Set as active immediately
+      return fullGroup;
     } catch (error) {
       console.error('Error creating group:', error);
       return null;
