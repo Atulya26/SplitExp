@@ -54,7 +54,11 @@ export const createGroup = async (groupData: Omit<Group, 'id' | 'createdAt'>) =>
       ...groupData,
       createdAt: serverTimestamp(),
     });
-    return { id: docRef.id, ...groupData };
+    return { 
+      id: docRef.id, 
+      ...groupData,
+      createdAt: new Date().toISOString() // Provide a fallback createdAt
+    };
   } catch (error) {
     console.error('Error creating group:', error);
     throw error;
@@ -107,7 +111,11 @@ export const addExpense = async (groupId: string, expenseData: Omit<Expense, 'id
       groupId,
       createdAt: serverTimestamp(),
     });
-    return { id: docRef.id, ...expenseData };
+    return { 
+      id: docRef.id, 
+      ...expenseData,
+      createdAt: new Date().toISOString() // Provide a fallback createdAt
+    };
   } catch (error) {
     console.error('Error adding expense:', error);
     throw error;

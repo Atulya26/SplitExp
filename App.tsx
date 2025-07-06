@@ -67,7 +67,7 @@ export default function App() {
     
     try {
       const newMember = await addMember(activeGroup.id, member);
-      const updatedGroup = {
+      const updatedGroup: Group = {
         ...activeGroup,
         members: [...activeGroup.members, newMember]
       };
@@ -84,7 +84,7 @@ export default function App() {
     
     try {
       await removeMember(memberId);
-      const updatedGroup = {
+      const updatedGroup: Group = {
         ...activeGroup,
         members: activeGroup.members.filter((m: Member) => m.id !== memberId)
       };
@@ -101,7 +101,7 @@ export default function App() {
     
     try {
       await deleteExpense(expenseId);
-      const updatedGroup = {
+      const updatedGroup: Group = {
         ...activeGroup,
         expenses: activeGroup.expenses.filter((e: Expense) => e.id !== expenseId)
       };
@@ -111,6 +111,10 @@ export default function App() {
     } catch (error) {
       console.error('Error deleting expense:', error);
     }
+  };
+
+  const handleSelectGroup = (group: Group | null) => {
+    setActiveGroup(group);
   };
 
   const handleCreateGroup = async (groupData: { name: string; description?: string }) => {
@@ -163,7 +167,7 @@ export default function App() {
         <Sidebar 
           groups={groups}
           activeGroup={activeGroup}
-          onSelectGroup={setActiveGroup}
+          onSelectGroup={handleSelectGroup}
           onCreateGroup={handleCreateGroup}
           userId={userId}
         />
@@ -188,7 +192,7 @@ export default function App() {
       <Sidebar 
         groups={groups}
         activeGroup={activeGroup}
-        onSelectGroup={setActiveGroup}
+        onSelectGroup={handleSelectGroup}
         onCreateGroup={handleCreateGroup}
         userId={userId}
         onAddMember={handleAddMember}

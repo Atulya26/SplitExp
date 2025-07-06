@@ -24,7 +24,7 @@ interface Group {
 interface SidebarProps {
   groups: Group[];
   activeGroup: Group | null;
-  onSelectGroup: (group: Group) => void;
+  onSelectGroup: (group: Group | null) => void;
   onCreateGroup: (groupData: { name: string; description?: string }) => void;
   userId: string | null;
   onAddMember?: (member: { name: string; email?: string }) => void;
