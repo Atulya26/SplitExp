@@ -25,7 +25,7 @@ interface SidebarProps {
   groups: Group[];
   activeGroup: Group | null;
   onSelectGroup: (group: Group | null) => void;
-  onCreateGroup: (groupData: { name: string; description?: string }) => void;
+  onCreateGroup: (groupData: { name: string; description?: string }) => Promise<Group | null>;
   userId: string | null;
   onAddMember?: (member: { name: string; email?: string }) => void;
   onRemoveMember?: (memberId: string) => void;
@@ -54,7 +54,10 @@ export function Sidebar({
       name: newGroupName.trim(),
       description: newGroupDesc.trim() || undefined
     };
-    await onCreateGroup(groupData);
+    const newGroup = await onCreateGroup(groupData);
+    if (newGroup) {
+      onSelectGroup(newGroup);
+    }
     setNewGroupName('');
     setNewGroupDesc('');
     setIsGroupDialogOpen(false);

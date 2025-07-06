@@ -144,8 +144,11 @@ export default function App() {
         createdBy: userId
       });
       await reloadGroups(newGroup.id);
+      // Return the new group object so Sidebar can set it as active
+      return { ...newGroup };
     } catch (error) {
       console.error('Error creating group:', error);
+      return null;
     }
   };
 
